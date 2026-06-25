@@ -27,6 +27,7 @@ export function EndpointPage() {
     toggleEndpointSelection, selectAllEndpoints, clearSelectedEndpoints,
     batchTestSelected, setSortByModifiedTime,
     analyzing, analyzeAndRename,
+    toastMessage, clearToast,
   } = useEndpointStore();
   const [showLogin, setShowLogin] = useState(false);
   const [loginUser, setLoginUser] = useState("");
@@ -195,11 +196,11 @@ export function EndpointPage() {
           <span style={{ flex: 1 }} />
           <button
             className="pill"
-            style={{ fontSize: "11px", background: analyzing ? "var(--paper-3)" : "var(--accent)", color: analyzing ? "var(--secondary)" : "#fff" }}
+            style={{ fontSize: "11px", background: analyzing ? "var(--paper-3)" : "var(--accent)", color: analyzing ? "var(--secondary)" : "#fff", display: "inline-flex", alignItems: "center", gap: "4px" }}
             onClick={() => currentProject && analyzeAndRename(currentProject.id)}
             disabled={analyzing}
           >
-            {analyzing ? "🧠 AI 分析中…" : "🧠 AI 命名分类"}
+            {analyzing ? "⏳ AI 分析中…" : "🧠 AI 命名分类"}
           </button>
         </div>
 
@@ -440,6 +441,8 @@ export function EndpointPage() {
           </div>
         </div>
       )}
+      {/* Toast notification */}
+      {toastMessage && <Toast message={toastMessage} onClose={clearToast} />}
     </div>
   );
 }
@@ -721,4 +724,30 @@ function formatBody(body: string, contentType: string): string {
     }
   }
   return body;
+}
+
+function Toast({ message, onClose }: { message: string; onClose: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 4000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  const isError = message.startsWith("❌");
+  return (
+    <div style={{
+      position: "fixed", bottom: "24px", left: "50%", transform: "translateX(-50%)",
+      background: isError ? "var(--danger, #e53e3e)" : "var(--success, #38a169)",
+      color: "#fff", padding: "10px 20px", borderRadius: "8px",
+      fontSize: "13px", fontWeight: 500, zIndex: 9999,
+      boxShadow: "0 4px 12px rgba(0,0,0,0.2)", maxWidth: "90vw",
+      display: "flex", alignItems: "center", gap: "8px",
+      animation: "toastIn 0.3s ease-out",
+    }}>
+      <span>{message}</span>
+      <button onClick={onClose} style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", fontSize: "16px", padding: "0 4px" }}>×</button>
+      <style>{`
+        @keyframes toastIn { from { opacity:0; transform:translateX(-50%) translateY(20px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+      `}</style>
+    </div>
+  );
 }

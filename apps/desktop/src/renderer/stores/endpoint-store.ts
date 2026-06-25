@@ -42,6 +42,7 @@ interface EndpointState {
   login: LoginState;
   llmConfig: { apiUrl: string; model: string } | null;
   analyzing: boolean;
+  toastMessage: string | null;
 
   fetchEndpoints: (projectId: string) => Promise<void>;
   selectEndpoint: (summary: EndpointSummary) => Promise<void>;
@@ -59,8 +60,8 @@ interface EndpointState {
   selectAllEndpoints: () => void;
   batchTestSelected: (projectId: string) => Promise<void>;
   setSortByModifiedTime: (sort: boolean) => Promise<void>;
-  loadLLMConfig: () => Promise<void>;
   analyzeAndRename: (projectId: string) => Promise<void>;
+  clearToast: () => void;
 
 }
 
@@ -83,6 +84,7 @@ export const useEndpointStore = create<EndpointState>((set, get) => ({
   login: { loggedIn: false, cookieHeader: "", username: "" },
   llmConfig: null,
   analyzing: false,
+  toastMessage: null,
 
   fetchEndpoints: async (projectId: string) => {
     set({ loading: true });
@@ -239,8 +241,11 @@ export const useEndpointStore = create<EndpointState>((set, get) => ({
   },
   analyzeAndRename: async (projectId: string) => {
     const { endpoints } = get();
-    if (endpoints.length === 0) return;
-    set({ analyzing: true });
+    if (endpoints.length === 0) {
+      set({ toastMessage: "暂无接口可分析" });
+      return;
+    }
+    set({ analyzing: true, toastMessage: null });
     try {
       const endpointData = endpoints.map((ep) => ({
         id: String(ep.id),
@@ -251,23 +256,22 @@ export const useEndpointStore = create<EndpointState>((set, get) => ({
         parameters: [],
       }));
       const result = await window.reqsmithDesktop.llmAnalyzeEndpoints({ projectId, endpoints: endpointData });
-      if (result.success && result.results) {
-        // Persist to database
+      if (result.success && result.results && result.results.length > 0) {
         await window.reqsmith.endpoints.batchRename({ renames: result.results });
-        // Update local state with new names/groups
         const updated = new Map(result.results.map((r) => [r.id, r]));
         const newEndpoints = endpoints.map((ep) => {
           const rename = updated.get(String(ep.id));
           if (!rename) return ep;
           return { ...ep, name: rename.name, group: rename.group };
         });
-        set({ endpoints: newEndpoints, analyzing: false });
+        set({ endpoints: newEndpoints, analyzing: false, toastMessage: `✅ 已为 ${result.results.length} 个接口生成中文名称和分类` });
       } else {
-        set({ analyzing: false });
+        set({ analyzing: false, toastMessage: `❌ AI 分析失败: ${result.error || "模型未返回有效结果"}` });
       }
     } catch (err) {
       console.error("analyzeAndRename error:", err);
-      set({ analyzing: false });
+      set({ analyzing: false, toastMessage: `❌ AI 分析异常: ${String(err)}` });
     }
   },
+  clearToast: () => set({ toastMessage: null }),
 }));
