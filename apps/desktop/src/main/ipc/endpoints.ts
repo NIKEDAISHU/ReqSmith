@@ -7,6 +7,7 @@ import { ProjectIdSchema } from "@reqsmith/contracts";
 import { generateRequest } from "@reqsmith/data-generator";
 import type { EndpointContext } from "@reqsmith/data-generator";
 import { getDefaultLLMConfig, createLLMGenerator } from "./llm.js";
+import { ParamResolver } from "../param-resolver.js";
 
 /** In-memory session cookies per base URL */
 const sessionCookies = new Map<string, string>();
@@ -24,13 +25,13 @@ async function findEndpointWithBaseUrl(
   db: Kysely<Database>,
   repo: EndpointRepository,
   endpointId: string,
-): Promise<{ endpoint: NormalizedEndpoint; baseUrl: string } | null> {
+): Promise<{ endpoint: NormalizedEndpoint; baseUrl: string; projectId: string } | null> {
   const allProjects = await db.selectFrom("project").select(["id", "base_url"]).execute();
   for (const p of allProjects) {
     const endpoints = await repo.listByProject(p.id);
     const found = endpoints.find((ep) => ep.id === endpointId);
     if (found) {
-      return { endpoint: found, baseUrl: p.base_url || "http://localhost:8080" };
+      return { endpoint: found, baseUrl: p.base_url || "http://localhost:8080", projectId: p.id };
     }
   }
   return null;
@@ -125,17 +126,21 @@ export function registerEndpointIpc(db: Kysely<Database>): void {
       const result = await findEndpointWithBaseUrl(db, repo, endpointId);
       if (!result) throw new Error(`Endpoint ${endpointId} not found`);
 
-      const { endpoint, baseUrl } = result;
+      const { endpoint, baseUrl, projectId } = result;
       const generated = generateRequest(endpoint, baseUrl);
+
+      // Smart resolve: auto-fetch real IDs from list endpoints
+      const resolver = new ParamResolver(db);
+      const sessionCookie = getSessionCookie(baseUrl);
+      const resolvedIds = await resolver.resolveParams(endpoint, baseUrl, projectId, sessionCookie || undefined);
 
       // Apply overrides if provided
       const overrides = input.overrides as Record<string, unknown> | undefined;
       const finalHeaders = { ...generated.headers, ...(overrides?.headers as Record<string, string> ?? {}) };
-      const finalParams = { ...generated.params, ...(overrides?.params as Record<string, string> ?? {}) };
+      const finalParams = { ...generated.params, ...resolvedIds, ...(overrides?.params as Record<string, string> ?? {}) };
       const finalBody = overrides?.body ?? generated.body;
 
       // Inject session cookies if available
-      const sessionCookie = getSessionCookie(baseUrl);
       if (sessionCookie) {
         finalHeaders["Cookie"] = sessionCookie;
       }
@@ -239,7 +244,7 @@ export function registerEndpointIpc(db: Kysely<Database>): void {
     }));
   });
 
-  // Batch test selected endpoints — with LLM data generation and response chaining
+  // Batch test selected endpoints — with smart param resolution
   ipcMain.handle("endpoints:batchTest", async (_event: IpcMainInvokeEvent, raw: unknown) => {
     const input = raw as Record<string, unknown>;
     const endpointIds = input.endpointIds as string[];
@@ -253,6 +258,7 @@ export function registerEndpointIpc(db: Kysely<Database>): void {
 
     const llmConfig = getDefaultLLMConfig();
     const llm = llmConfig ? createLLMGenerator(llmConfig) : undefined;
+    const resolver = new ParamResolver(db);
 
     for (const endpointId of endpointIds) {
       try {
@@ -262,30 +268,37 @@ export function registerEndpointIpc(db: Kysely<Database>): void {
           continue;
         }
 
-        const { endpoint, baseUrl } = result;
+        const { endpoint, baseUrl, projectId } = result;
         const generated = generateRequest(endpoint, baseUrl);
 
-        // Resolve path/query params: prefer collected IDs, then LLM, then defaults
-        if (llm && endpoint.parameters.length > 0) {
-          // Build override values from collected IDs first
-          const idOverrides: Record<string, string> = {};
-          for (const param of endpoint.parameters) {
-            if (param.location !== "path" && param.location !== "query") continue;
-            // Try to match param name to a collected entity type
-            const lowerName = param.name.toLowerCase();
-            for (const [entityType, ids] of collectedIds) {
-              if (lowerName.includes(entityType) && ids.length > 0) {
-                idOverrides[param.name] = ids[0];
-                break;
-              }
+        const sessionCookie = getSessionCookie(baseUrl);
+
+        // Step 1: Smart resolve — call list endpoints to get real IDs
+        const resolvedIds = await resolver.resolveParams(
+          endpoint, baseUrl, projectId, sessionCookie || undefined,
+        );
+
+        // Step 2: For remaining unresolved params, try collected IDs from previous responses
+        const chainedIds: Record<string, string> = {};
+        for (const param of endpoint.parameters) {
+          if (param.location !== "path" && param.location !== "query") continue;
+          if (resolvedIds[param.name]) continue; // already resolved
+          const lowerName = param.name.toLowerCase();
+          for (const [entityType, ids] of collectedIds) {
+            if (lowerName.includes(entityType) && ids.length > 0) {
+              chainedIds[param.name] = ids[0];
+              break;
             }
           }
+        }
 
-          // If some params still unresolved, ask LLM
+        // Step 3: For still-unresolved params, ask LLM
+        let llmValues: Record<string, string> = {};
+        if (llm) {
+          const resolved = new Set([...Object.keys(resolvedIds), ...Object.keys(chainedIds)]);
           const unresolvedParams = endpoint.parameters.filter(
-            (p) => (p.location === "path" || p.location === "query") && idOverrides[p.name] === undefined,
+            (p) => (p.location === "path" || p.location === "query") && !resolved.has(p.name),
           );
-          let llmValues: Record<string, string> = {};
           if (unresolvedParams.length > 0) {
             const ctx: EndpointContext = {
               method: endpoint.method,
@@ -297,19 +310,17 @@ export function registerEndpointIpc(db: Kysely<Database>): void {
             };
             llmValues = (await llm.generateValues(ctx, unresolvedParams)) ?? {};
           }
-
-          // Merge: collected IDs > LLM values > generated defaults
-          const mergedParams = { ...generated.params, ...llmValues, ...idOverrides };
-          generated.params = mergedParams;
         }
+
+        // Merge: resolved IDs (from list API) > chained IDs (from prev response) > LLM > defaults
+        const mergedParams = { ...generated.params, ...llmValues, ...chainedIds, ...resolvedIds };
 
         // Apply user overrides
         const overrides = input.overrides as Record<string, unknown> | undefined;
         const finalHeaders = { ...generated.headers, ...(overrides?.headers as Record<string, string> ?? {}) };
-        const finalParams = { ...generated.params, ...(overrides?.params as Record<string, string> ?? {}) };
+        const finalParams = { ...mergedParams, ...(overrides?.params as Record<string, string> ?? {}) };
         const finalBody = overrides?.body ?? generated.body;
 
-        const sessionCookie = getSessionCookie(baseUrl);
         if (sessionCookie) {
           finalHeaders["Cookie"] = sessionCookie;
         }
@@ -344,7 +355,6 @@ export function registerEndpointIpc(db: Kysely<Database>): void {
         if (success) {
           try {
             const body = await response.json() as unknown;
-            // Extract IDs from common response patterns
             collectIdsFromResponse(body, collectedIds, endpoint);
           } catch {
             // Not JSON or no IDs — fine
