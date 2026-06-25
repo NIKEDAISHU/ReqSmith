@@ -43,6 +43,7 @@ interface EndpointState {
   llmConfig: { apiUrl: string; model: string } | null;
   analyzing: boolean;
   toastMessage: string | null;
+  editedOverrides: { params: Record<string, string>; headers: Record<string, string>; body: string };
 
   fetchEndpoints: (projectId: string) => Promise<void>;
   selectEndpoint: (summary: EndpointSummary) => Promise<void>;
@@ -60,9 +61,13 @@ interface EndpointState {
   selectAllEndpoints: () => void;
   batchTestSelected: (projectId: string) => Promise<void>;
   setSortByModifiedTime: (sort: boolean) => Promise<void>;
+  loadLLMConfig: () => Promise<void>;
   analyzeAndRename: (projectId: string) => Promise<void>;
   clearToast: () => void;
-
+  setEditedParam: (key: string, value: string) => void;
+  setEditedHeader: (key: string, value: string) => void;
+  setEditedBody: (value: string) => void;
+  resetOverrides: () => void;
 }
 
 export const useEndpointStore = create<EndpointState>((set, get) => ({
@@ -81,10 +86,11 @@ export const useEndpointStore = create<EndpointState>((set, get) => ({
   selectedMethod: null,
   sortByModifiedTime: false,
   baseUrl: "http://localhost:8080",
+  toastMessage: null,
+  editedOverrides: { params: {}, headers: {}, body: "" },
   login: { loggedIn: false, cookieHeader: "", username: "" },
   llmConfig: null,
   analyzing: false,
-  toastMessage: null,
 
   fetchEndpoints: async (projectId: string) => {
     set({ loading: true });
@@ -101,7 +107,7 @@ export const useEndpointStore = create<EndpointState>((set, get) => ({
   },
 
   selectEndpoint: async (summary: EndpointSummary) => {
-    set({ selectedEndpoint: null, generatedRequest: null, sendResult: null });
+    set({ selectedEndpoint: null, generatedRequest: null, sendResult: null, editedOverrides: { params: {}, headers: {}, body: "" } });
     try {
       const detail: EndpointDetail = await window.reqsmith.endpoints.get(summary.id);
       set({ selectedEndpoint: detail });
@@ -111,7 +117,7 @@ export const useEndpointStore = create<EndpointState>((set, get) => ({
     }
   },
 
-  clearSelection: () => set({ selectedEndpoint: null, generatedRequest: null, sendResult: null }),
+  clearSelection: () => set({ selectedEndpoint: null, generatedRequest: null, sendResult: null, editedOverrides: { params: {}, headers: {}, body: "" } }),
 
   generateForEndpoint: async (endpointId: string) => {
     try {
@@ -119,7 +125,15 @@ export const useEndpointStore = create<EndpointState>((set, get) => ({
         endpointId,
         environmentId: "default",
       });
-      set({ generatedRequest: result });
+      // Initialize edited overrides from generated values
+      set({
+        generatedRequest: result,
+        editedOverrides: {
+          params: { ...result.params },
+          headers: { ...result.headers },
+          body: result.body !== undefined ? JSON.stringify(result.body, null, 2) : "",
+        },
+      });
     } catch (err) {
       console.error("generateForEndpoint error:", err);
     }
@@ -127,10 +141,31 @@ export const useEndpointStore = create<EndpointState>((set, get) => ({
 
   sendRequest: async (endpointId: string) => {
     set({ sending: true, sendResult: null });
+    const { editedOverrides, generatedRequest } = get();
     try {
+      // Build overrides from edited values that differ from generated
+      const overrides: Record<string, unknown> = {};
+      if (generatedRequest) {
+        const paramOverrides: Record<string, string> = {};
+        for (const [k, v] of Object.entries(editedOverrides.params)) {
+          if (v !== generatedRequest.params[k]) paramOverrides[k] = v;
+        }
+        if (Object.keys(paramOverrides).length > 0) overrides.params = paramOverrides;
+
+        const headerOverrides: Record<string, string> = {};
+        for (const [k, v] of Object.entries(editedOverrides.headers)) {
+          if (v !== generatedRequest.headers[k]) headerOverrides[k] = v;
+        }
+        if (Object.keys(headerOverrides).length > 0) overrides.headers = headerOverrides;
+
+        if (editedOverrides.body && editedOverrides.body !== JSON.stringify(generatedRequest.body, null, 2)) {
+          try { overrides.body = JSON.parse(editedOverrides.body); } catch { overrides.body = editedOverrides.body; }
+        }
+      }
       const result: RequestResult = await window.reqsmith.endpoints.send({
         endpointId,
         environmentId: "default",
+        overrides: Object.keys(overrides).length > 0 ? overrides : undefined,
       });
       set({ sendResult: result, sending: false });
     } catch (err) {
@@ -274,4 +309,25 @@ export const useEndpointStore = create<EndpointState>((set, get) => ({
     }
   },
   clearToast: () => set({ toastMessage: null }),
+  setEditedParam: (key, value) => set((s) => ({
+    editedOverrides: { ...s.editedOverrides, params: { ...s.editedOverrides.params, [key]: value } },
+  })),
+  setEditedHeader: (key, value) => set((s) => ({
+    editedOverrides: { ...s.editedOverrides, headers: { ...s.editedOverrides.headers, [key]: value } },
+  })),
+  setEditedBody: (value) => set((s) => ({
+    editedOverrides: { ...s.editedOverrides, body: value },
+  })),
+  resetOverrides: () => {
+    const gr = get().generatedRequest;
+    if (gr) {
+      set({
+        editedOverrides: {
+          params: { ...gr.params },
+          headers: { ...gr.headers },
+          body: gr.body !== undefined ? JSON.stringify(gr.body, null, 2) : "",
+        },
+      });
+    }
+  },
 }));

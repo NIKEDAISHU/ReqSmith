@@ -28,6 +28,7 @@ export function EndpointPage() {
     batchTestSelected, setSortByModifiedTime,
     analyzing, analyzeAndRename,
     toastMessage, clearToast,
+    editedOverrides, setEditedParam, setEditedHeader, setEditedBody, resetOverrides,
   } = useEndpointStore();
   const [showLogin, setShowLogin] = useState(false);
   const [loginUser, setLoginUser] = useState("");
@@ -322,6 +323,11 @@ export function EndpointPage() {
             sending={sending}
             onSend={() => sendRequest(selectedEndpoint.id)}
             baseUrl={currentProject?.baseUrl || "http://localhost:8080"}
+            editedOverrides={editedOverrides}
+            setEditedParam={setEditedParam}
+            setEditedHeader={setEditedHeader}
+            setEditedBody={setEditedBody}
+            resetOverrides={resetOverrides}
           />
         ) : (
           <div
@@ -456,9 +462,14 @@ interface RequestPanelProps {
   sending: boolean;
   onSend: () => void;
   baseUrl: string;
+  editedOverrides: { params: Record<string, string>; headers: Record<string, string>; body: string };
+  setEditedParam: (key: string, value: string) => void;
+  setEditedHeader: (key: string, value: string) => void;
+  setEditedBody: (value: string) => void;
+  resetOverrides: () => void;
 }
 
-function RequestPanel({ endpoint, generatedRequest, sendResult, sending, onSend, baseUrl }: RequestPanelProps) {
+function RequestPanel({ endpoint, generatedRequest, sendResult, sending, onSend, baseUrl, editedOverrides, setEditedParam, setEditedHeader, setEditedBody, resetOverrides }: RequestPanelProps) {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       {/* Endpoint header */}
@@ -522,64 +533,52 @@ function RequestPanel({ endpoint, generatedRequest, sendResult, sending, onSend,
         )}
       </div>
 
-      {/* Generated request */}
+      {/* Request parameters — editable */}
       {generatedRequest && (
         <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--divider)" }}>
-          <div className="fmark" style={{ marginBottom: "8px" }}>自动生成的请求</div>
-
-          {/* Full URL */}
-          <div style={{ marginBottom: "10px" }}>
-            <div className="receipt" style={{ marginBottom: "2px" }}>URL</div>
-            <div
-              style={{
-                fontSize: "13px",
-                fontFamily: "monospace",
-                color: "var(--ink)",
-                background: "var(--surface)",
-                padding: "6px 10px",
-                borderRadius: "4px",
-                wordBreak: "break-all",
-              }}
-            >
-              {generatedRequest.url}
-            </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+            <div className="fmark" style={{ margin: 0 }}>请求参数</div>
+            <button className="pill" style={{ fontSize: "11px", background: "var(--paper-3)", color: "var(--secondary)" }} onClick={resetOverrides}>重置</button>
           </div>
 
           {/* Params */}
-          {Object.keys(generatedRequest.params).length > 0 && (
+          {Object.keys(editedOverrides.params).length > 0 && (
             <div style={{ marginBottom: "10px" }}>
               <div className="receipt" style={{ marginBottom: "2px" }}>参数</div>
-              <ParamTable params={generatedRequest.params} />
+              <EditableParams params={editedOverrides.params} onChange={setEditedParam} />
             </div>
           )}
 
           {/* Headers */}
-          {Object.keys(generatedRequest.headers).length > 0 && (
+          {Object.keys(editedOverrides.headers).length > 0 && (
             <div style={{ marginBottom: "10px" }}>
               <div className="receipt" style={{ marginBottom: "2px" }}>请求头</div>
-              <ParamTable params={generatedRequest.headers} />
+              <EditableParams params={editedOverrides.headers} onChange={setEditedHeader} />
             </div>
           )}
 
           {/* Body */}
-          {generatedRequest.body !== undefined && (
+          {editedOverrides.body && (
             <div style={{ marginBottom: "10px" }}>
               <div className="receipt" style={{ marginBottom: "2px" }}>请求体</div>
-              <pre
+              <textarea
+                value={editedOverrides.body}
+                onChange={(e) => setEditedBody(e.target.value)}
                 style={{
+                  width: "100%",
+                  minHeight: "80px",
                   fontSize: "12px",
                   fontFamily: "monospace",
                   background: "var(--surface)",
-                  padding: "10px",
+                  border: "1px solid var(--divider)",
                   borderRadius: "4px",
-                  overflow: "auto",
-                  margin: 0,
+                  padding: "8px",
                   color: "var(--ink)",
                   lineHeight: 1.5,
+                  resize: "vertical",
+                  boxSizing: "border-box",
                 }}
-              >
-                {JSON.stringify(generatedRequest.body, null, 2)}
-              </pre>
+              />
             </div>
           )}
 
@@ -749,5 +748,46 @@ function Toast({ message, onClose }: { message: string; onClose: () => void }) {
         @keyframes toastIn { from { opacity:0; transform:translateX(-50%) translateY(20px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
       `}</style>
     </div>
+  );
+}
+
+function EditableParams({ params, onChange }: { params: Record<string, string>; onChange: (key: string, value: string) => void }) {
+  return (
+    <table style={{ width: "100%", fontSize: "13px", borderCollapse: "collapse" }}>
+      <thead>
+        <tr style={{ borderBottom: "2px solid var(--divider)" }}>
+          <th style={{ textAlign: "left", padding: "4px 8px", fontWeight: 600, fontSize: "12px" }}>参数名</th>
+          <th style={{ textAlign: "left", padding: "4px 8px", fontWeight: 600, fontSize: "12px" }}>值</th>
+        </tr>
+      </thead>
+      <tbody>
+        {Object.entries(params).map(([key, val]) => (
+          <tr key={key} style={{ borderBottom: "1px solid var(--divider)" }}>
+            <td style={{ padding: "4px 8px", fontFamily: "monospace", color: "var(--accent)", whiteSpace: "nowrap" }}>{key}</td>
+            <td style={{ padding: "4px 8px", width: "100%" }}>
+              <input
+                type="text"
+                value={val}
+                onChange={(e) => onChange(key, e.target.value)}
+                style={{
+                  width: "100%",
+                  fontSize: "13px",
+                  fontFamily: "monospace",
+                  background: "var(--surface)",
+                  border: "1px solid var(--divider)",
+                  borderRadius: "3px",
+                  padding: "3px 6px",
+                  color: "var(--ink)",
+                  boxSizing: "border-box",
+                  outline: "none",
+                }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = "var(--divider)"; }}
+              />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
