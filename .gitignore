@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+out/
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Environment & secrets
+.env
+.env.*
+*.local
+
+# Electron
+release/
+
+# Turbo
+.turbo/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Testing
+coverage/
+
+# Kysely migration meta (generated)
+packages/persistence/src/migrations/meta/
+
+# Codegraph local index
+.codegraph/
+
+# Config files with API keys
+opencode*配置*.json

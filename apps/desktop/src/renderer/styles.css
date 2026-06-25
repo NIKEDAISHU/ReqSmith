@@ -1,0 +1,271 @@
+/* ── ReqSmith Design Tokens (Yopedia-aligned) ── */
+
+:root {
+  /* Surface */
+  --paper: #fbfaf6;
+  --paper-2: #f4f1e9;
+  --paper-3: #ece8dd;
+
+  /* Text */
+  --ink: #1b1a16;
+  --ink-2: #423f38;
+  --muted: #756f62;
+  --faint: #a39c8c;
+
+  /* Lines */
+  --rule: #e2ddd0;
+  --rule-strong: #d2cbb9;
+
+  /* Accent */
+  --accent: #4d6bfe;
+  --accent-2: #3a57e0;
+  --accent-soft: #e7ebff;
+  --on-accent: #fbfaf6;
+
+  /* Semantic */
+  --rust: #9a4a22;
+  --rust-soft: #f1e5dc;
+  --success: #297a4a;
+  --success-soft: #e2f0e7;
+  --warning: #9a6a13;
+  --warning-soft: #f5edd8;
+
+  /* Shadows */
+  --shadow: 0 1px 2px #1b1a160a, 0 8px 30px #1b1a160d;
+  --shadow-lg: 0 2px 6px #1b1a160f, 0 24px 60px #1b1a161a;
+
+  /* Layout */
+  --maxw: 1180px;
+  --nav-h: 64px;
+  --measure: 66ch;
+
+  /* Font stacks */
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
+  --font-read: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", "SFMono-Regular", ui-monospace, monospace;
+
+  /* Type scale */
+  --read-size: 18px;
+  --read-lh: 1.7;
+
+  /* Radii */
+  --r-sm: 6px;
+  --r-md: 14px;
+  --r-lg: 18px;
+  --r-pill: 999px;
+}
+
+[data-theme="dark"] {
+  --paper: #14130f;
+  --paper-2: #1c1b16;
+  --paper-3: #25231c;
+  --ink: #efe9df;
+  --ink-2: #c7c2b4;
+  --muted: #948e7f;
+  --faint: #6b665a;
+  --rule: #2b281f;
+  --rule-strong: #3a372c;
+  --accent: #93a6ff;
+  --accent-2: #7a90ff;
+  --accent-soft: #1c2444;
+  --on-accent: #14130f;
+  --rust: #d08a5e;
+  --rust-soft: #2b2017;
+  --success: #5cb87a;
+  --success-soft: #1a2b20;
+  --warning: #d4a44c;
+  --warning-soft: #2b2417;
+  --shadow: 0 1px 2px rgba(0,0,0,0.2), 0 8px 30px rgba(0,0,0,0.25);
+  --shadow-lg: 0 2px 6px rgba(0,0,0,0.25), 0 24px 60px rgba(0,0,0,0.35);
+}
+
+/* ── Reset & Base ── */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-read);
+  font-size: var(--read-size);
+  line-height: var(--read-lh);
+  overflow: hidden;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--accent-2); }
+
+/* ── Utility Classes ── */
+
+.display {
+  font-family: var(--font-display);
+  letter-spacing: -0.03em;
+  font-weight: 600;
+}
+
+.fmark {
+  font-family: var(--font-display);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.receipt {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.row { display: flex; align-items: center; }
+.stack { display: flex; flex-direction: column; }
+.spread { display: flex; justify-content: space-between; align-items: center; }
+
+/* ── Pill button ── */
+
+.pill {
+  font-family: var(--font-display);
+  font-size: 13px;
+  padding: 5px 12px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.pill:hover { border-color: var(--rule-strong); background: var(--paper-2); }
+.pill.active {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* ── Primary button ── */
+
+.btn {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 9px 20px;
+  border-radius: var(--r-pill);
+  border: 0;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn.primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.btn.primary:hover { background: var(--accent-2); }
+.btn.ghost {
+  background: transparent;
+  color: var(--ink-2);
+  border: 1px solid var(--rule-strong);
+}
+.btn.ghost:hover { background: var(--paper-2); }
+
+/* ── Method badges ── */
+
+.method {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+}
+.method.GET     { color: var(--accent);    background: var(--accent-soft); }
+.method.POST    { color: var(--success);   background: var(--success-soft); }
+.method.PUT     { color: var(--warning);   background: var(--warning-soft); }
+.method.PATCH   { color: var(--warning);   background: var(--warning-soft); }
+.method.DELETE  { color: var(--rust);      background: var(--rust-soft); }
+.method.HEAD, .method.OPTIONS { color: var(--muted); background: var(--paper-3); }
+
+/* ── Status dot ── */
+
+.dot {
+  width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+  flex-shrink: 0;
+}
+.dot.success  { background: var(--success); }
+.dot.failure  { background: var(--rust); }
+.dot.running  { background: var(--accent); animation: pulse 1.2s infinite; }
+.dot.queued   { border: 1.5px solid var(--muted); background: transparent; }
+.dot.skipped  { width: 8px; height: 2px; border-radius: 1px; background: var(--muted); margin-top: 3px; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ── Input ── */
+
+.input {
+  font-family: var(--font-read);
+  font-size: 16px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  width: 100%;
+}
+.input::placeholder { color: var(--faint); }
+
+/* ── Shell (max-width container) ── */
+
+.shell {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding-inline: 28px;
+}
+
+/* ── Modal ── */
+
+.overlay {
+  position: fixed; inset: 0;
+  background: rgba(27,26,22,0.25);
+  backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+}
+
+.modal {
+  background: var(--paper);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 28px;
+  width: 520px;
+  max-width: 92vw;
+  display: flex; flex-direction: column; gap: 20px;
+}
+
+/* ── Divider ── */
+
+hr.rule {
+  border: 0;
+  border-top: 1px solid var(--rule);
+}
+
+/* ── Scroll ── */
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--rule-strong); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }

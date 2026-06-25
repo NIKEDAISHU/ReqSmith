@@ -1,0 +1,22 @@
+{
+  "name": "@reqsmith/scanner-spring",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@reqsmith/contracts": "workspace:*",
+    "@reqsmith/scanner-sdk": "workspace:*",
+    "picomatch": "^4.0.4"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "@types/picomatch": "^4.0.3",
+    "typescript": "^5.8.0"
+  }
+}

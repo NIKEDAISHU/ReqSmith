@@ -1,0 +1,28 @@
+{
+  "name": "reqsmith",
+  "private": true,
+  "description": "ReqSmith - Scan. Shape. Test. A local-first API testing workbench.",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.4",
+    "electron-rebuild": "^3.2.9",
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.0",
+    "vitest": "^4.1.9"
+  },
+  "packageManager": "pnpm@10.33.2",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "electron",
+      "esbuild",
+      "electron-winstaller"
+    ]
+  }
+}
