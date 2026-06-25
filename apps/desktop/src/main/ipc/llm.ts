@@ -130,7 +130,7 @@ async function callLLM(config: LLMConfig, prompt: string): Promise<string | null
   return promise;
 }
 
-function createLLMGenerator(config: LLMConfig): LLMGenerator {
+export function createLLMGenerator(config: LLMConfig): LLMGenerator {
   return {
     async generateValues(
       context: EndpointContext,
@@ -139,7 +139,9 @@ function createLLMGenerator(config: LLMConfig): LLMGenerator {
       if (params.length === 0) return null;
 
       const paramList = params.map((p) => `- ${p.name} (${p.type}, ${p.location}${p.required ? ", required" : ""})`).join("\n");
-      const prompt = `API Endpoint: ${context.method} ${context.path}
+      const prompt = `You are generating test data for a Chinese health law enforcement case review system (卫生行政执法案卷评审系统).
+
+API Endpoint: ${context.method} ${context.path}
 Name: ${context.name}
 Group: ${context.group}
 ${context.tags.length > 0 ? `Tags: ${context.tags.join(", ")}` : ""}
@@ -147,7 +149,12 @@ ${context.tags.length > 0 ? `Tags: ${context.tags.join(", ")}` : ""}
 Parameters:
 ${paramList}
 
-Generate realistic test values for each parameter. The API is a Chinese government health enforcement system (卫生行政执法). Return a JSON object like: {"paramName": "value"}`;
+Rules:
+- For path params like caseId/案卷ID, use a REALISTIC id (e.g. a UUID or numeric id that could exist in the system). Prefer simple numeric values like 1, 2, 3 for test.
+- For query params like page/pageSize, use sensible defaults (page=1, pageSize=10).
+- For date params, use ISO format dates within the last year.
+- For status/type fields, use valid enum values common in Chinese government systems.
+- Return ONLY a JSON object mapping parameter names to values: {"paramName": "value"}`;
 
       const response = await callLLM(config, prompt);
       if (!response) return null;

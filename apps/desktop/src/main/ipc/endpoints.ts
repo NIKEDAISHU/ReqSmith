@@ -5,6 +5,8 @@ import { EndpointRepository } from "@reqsmith/persistence";
 import type { NormalizedEndpoint } from "@reqsmith/contracts";
 import { ProjectIdSchema } from "@reqsmith/contracts";
 import { generateRequest } from "@reqsmith/data-generator";
+import type { EndpointContext } from "@reqsmith/data-generator";
+import { getDefaultLLMConfig, createLLMGenerator } from "./llm.js";
 
 /** In-memory session cookies per base URL */
 const sessionCookies = new Map<string, string>();
@@ -237,7 +239,7 @@ export function registerEndpointIpc(db: Kysely<Database>): void {
     }));
   });
 
-  // Batch test selected endpoints
+  // Batch test selected endpoints — with LLM data generation and response chaining
   ipcMain.handle("endpoints:batchTest", async (_event: IpcMainInvokeEvent, raw: unknown) => {
     const input = raw as Record<string, unknown>;
     const endpointIds = input.endpointIds as string[];
@@ -246,6 +248,11 @@ export function registerEndpointIpc(db: Kysely<Database>): void {
     }
 
     const results: Array<{ endpointId: string; success: boolean; statusCode?: number; error?: string; responseTimeMs?: number }> = [];
+    // Collected IDs from list endpoints, keyed by entity type (e.g. "case", "rule")
+    const collectedIds = new Map<string, string[]>();
+
+    const llmConfig = getDefaultLLMConfig();
+    const llm = llmConfig ? createLLMGenerator(llmConfig) : undefined;
 
     for (const endpointId of endpointIds) {
       try {
@@ -258,7 +265,45 @@ export function registerEndpointIpc(db: Kysely<Database>): void {
         const { endpoint, baseUrl } = result;
         const generated = generateRequest(endpoint, baseUrl);
 
-        // Apply overrides
+        // Resolve path/query params: prefer collected IDs, then LLM, then defaults
+        if (llm && endpoint.parameters.length > 0) {
+          // Build override values from collected IDs first
+          const idOverrides: Record<string, string> = {};
+          for (const param of endpoint.parameters) {
+            if (param.location !== "path" && param.location !== "query") continue;
+            // Try to match param name to a collected entity type
+            const lowerName = param.name.toLowerCase();
+            for (const [entityType, ids] of collectedIds) {
+              if (lowerName.includes(entityType) && ids.length > 0) {
+                idOverrides[param.name] = ids[0];
+                break;
+              }
+            }
+          }
+
+          // If some params still unresolved, ask LLM
+          const unresolvedParams = endpoint.parameters.filter(
+            (p) => (p.location === "path" || p.location === "query") && idOverrides[p.name] === undefined,
+          );
+          let llmValues: Record<string, string> = {};
+          if (unresolvedParams.length > 0) {
+            const ctx: EndpointContext = {
+              method: endpoint.method,
+              path: endpoint.path,
+              name: endpoint.name,
+              group: endpoint.group,
+              tags: endpoint.tags,
+              parameters: endpoint.parameters,
+            };
+            llmValues = (await llm.generateValues(ctx, unresolvedParams)) ?? {};
+          }
+
+          // Merge: collected IDs > LLM values > generated defaults
+          const mergedParams = { ...generated.params, ...llmValues, ...idOverrides };
+          generated.params = mergedParams;
+        }
+
+        // Apply user overrides
         const overrides = input.overrides as Record<string, unknown> | undefined;
         const finalHeaders = { ...generated.headers, ...(overrides?.headers as Record<string, string> ?? {}) };
         const finalParams = { ...generated.params, ...(overrides?.params as Record<string, string> ?? {}) };
@@ -269,7 +314,7 @@ export function registerEndpointIpc(db: Kysely<Database>): void {
           finalHeaders["Cookie"] = sessionCookie;
         }
 
-        let url = generated.url;
+        let url = generated.url.split("?")[0];
         for (const [key, val] of Object.entries(finalParams)) {
           url = url.replace(`{${key}}`, encodeURIComponent(val));
         }
@@ -295,7 +340,17 @@ export function registerEndpointIpc(db: Kysely<Database>): void {
           responseTimeMs: duration,
         });
 
-        // Update last test status in DB
+        // Collect IDs from successful list responses for chaining
+        if (success) {
+          try {
+            const body = await response.json() as unknown;
+            // Extract IDs from common response patterns
+            collectIdsFromResponse(body, collectedIds, endpoint);
+          } catch {
+            // Not JSON or no IDs — fine
+          }
+        }
+
         await repo.updateLastTested(endpointId, success ? "passed" : "failed", `Status: ${response.status}`);
       } catch (err) {
         results.push({
@@ -316,4 +371,65 @@ export function registerEndpointIpc(db: Kysely<Database>): void {
       summary: { total: results.length, passed, failed },
     };
   });
+}
+
+/** Extract entity IDs from a list response body for use in subsequent detail endpoints. */
+function collectIdsFromResponse(
+  body: unknown,
+  collectedIds: Map<string, string[]>,
+  endpoint: NormalizedEndpoint,
+): void {
+  if (!body || typeof body !== "object") return;
+
+  // Determine entity type from endpoint path/group
+  const path = endpoint.path.toLowerCase();
+  const group = (endpoint.group ?? "").toLowerCase();
+
+  // Common entity type patterns: /cases → "case", /rules → "rule", etc.
+  const entityType = extractEntityType(path) ?? extractEntityType(group);
+  if (!entityType) return;
+
+  // Try common response shapes: { data: [...] }, { records: [...] }, { list: [...] }, or array root
+  const arrays: unknown[][] = [];
+  const obj = body as Record<string, unknown>;
+  if (Array.isArray(obj)) {
+    arrays.push(obj);
+  } else {
+    for (const key of ["data", "records", "list", "items", "content", "rows"]) {
+      if (Array.isArray(obj[key])) {
+        arrays.push(obj[key] as unknown[]);
+      }
+    }
+  }
+
+  const ids: string[] = [];
+  for (const arr of arrays) {
+    for (const item of arr) {
+      if (!item || typeof item !== "object") continue;
+      const record = item as Record<string, unknown>;
+      // Try common ID field names
+      const id = String(record["id"] ?? record["caseId"] ?? record["ruleId"] ?? record["Id"] ?? "");
+      if (id) ids.push(id);
+    }
+  }
+
+  if (ids.length > 0) {
+    const existing = collectedIds.get(entityType) ?? [];
+    collectedIds.set(entityType, [...existing, ...ids]);
+  }
+}
+
+/** Extract entity type from a path segment like "/cases" → "case", "/case-reviews" → "case" */
+function extractEntityType(segment: string): string | null {
+  const patterns: Array<{ re: RegExp; type: string }> = [
+    { re: /case|案卷|aj/, type: "case" },
+    { re: /rule|规则|评分|gz/, type: "rule" },
+    { re: /user|用户|yh/, type: "user" },
+    { re: /org|单位|机构|dw/, type: "org" },
+    { re: /review|评审|评查|pc/, type: "review" },
+  ];
+  for (const { re, type } of patterns) {
+    if (re.test(segment)) return type;
+  }
+  return null;
 }
