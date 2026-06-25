@@ -20,13 +20,14 @@
   },
   "dependencies": {
     "@reqsmith/contracts": "workspace:*",
+    "@reqsmith/data-generator": "workspace:*",
     "@reqsmith/design-system": "workspace:*",
     "@reqsmith/domain": "workspace:*",
     "@reqsmith/persistence": "workspace:*",
     "@reqsmith/scanner-spring": "workspace:*",
-    "@reqsmith/data-generator": "workspace:*",
-    "kysely": "^0.28.0",
-    "electron-store": "^10.0.0"
+    "electron-store": "^10.0.0",
+    "electron-updater": "^6.8.9",
+    "kysely": "^0.28.0"
   },
   "devDependencies": {
     "@types/node": "^26.0.0",
@@ -55,11 +56,18 @@
       "package.json"
     ],
     "extraResources": [],
+    "publish": {
+      "provider": "github",
+      "owner": "NIKEDAISHU",
+      "repo": "ReqSmith"
+    },
     "win": {
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": null

@@ -3,21 +3,16 @@ import { sql, type Migration } from "kysely";
 export const migration004: Migration = {
   up: async (db) => {
     // Add source code location for sorting by modification time
-    await db.schema
-      .alterTable("endpoint")
-      .addColumn("source_file_modified_at", "text")
-      .addColumn("source_method_line", "integer")
-      .addColumn("source_class_line", "integer")
-      .execute();
+    // SQLite doesn't support multiple ADD COLUMN in one ALTER TABLE — must split
+    await db.schema.alterTable("endpoint").addColumn("source_file_modified_at", "text").execute();
+    await db.schema.alterTable("endpoint").addColumn("source_method_line", "integer").execute();
+    await db.schema.alterTable("endpoint").addColumn("source_class_line", "integer").execute();
 
     // Add fields for multi-select and testing
-    await db.schema
-      .alterTable("endpoint")
-      .addColumn("selected", "integer", (col) => col.notNull().defaultTo(0))
-      .addColumn("last_tested_at", "text")
-      .addColumn("last_test_status", "text")
-      .addColumn("last_test_message", "text")
-      .execute();
+    await db.schema.alterTable("endpoint").addColumn("selected", "integer", (col) => col.notNull().defaultTo(0)).execute();
+    await db.schema.alterTable("endpoint").addColumn("last_tested_at", "text").execute();
+    await db.schema.alterTable("endpoint").addColumn("last_test_status", "text").execute();
+    await db.schema.alterTable("endpoint").addColumn("last_test_message", "text").execute();
 
     // Create index for sorting by source modification time
     await db.schema
@@ -53,6 +48,12 @@ export const migration004: Migration = {
   },
   down: async (db) => {
     await db.schema.dropTable("test_result").ifExists().execute();
-    await db.schema.alterTable("endpoint").dropColumn("source_file_modified_at").dropColumn("source_method_line").dropColumn("source_class_line").dropColumn("selected").dropColumn("last_tested_at").dropColumn("last_test_status").dropColumn("last_test_message").execute();
+    await db.schema.alterTable("endpoint").dropColumn("source_file_modified_at").execute();
+    await db.schema.alterTable("endpoint").dropColumn("source_method_line").execute();
+    await db.schema.alterTable("endpoint").dropColumn("source_class_line").execute();
+    await db.schema.alterTable("endpoint").dropColumn("selected").execute();
+    await db.schema.alterTable("endpoint").dropColumn("last_tested_at").execute();
+    await db.schema.alterTable("endpoint").dropColumn("last_test_status").execute();
+    await db.schema.alterTable("endpoint").dropColumn("last_test_message").execute();
   },
 };

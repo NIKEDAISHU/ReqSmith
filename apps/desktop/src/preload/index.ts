@@ -52,6 +52,12 @@ export interface DesktopExtras {
   llmTestConnection: (config: { apiUrl: string; model: string; apiKey?: string }) => Promise<{ success: boolean; error?: string }>;
   llmGetConfig: () => Promise<{ apiUrl: string; model: string; apiKey?: string } | null>;
   llmSetConfig: (config: { apiUrl: string; model: string; apiKey?: string }) => Promise<{ success: boolean }>;
+  updateCheck: () => Promise<{ available: boolean; info: { version: string } | null; error?: string }>;
+  updateDownload: () => Promise<{ success: boolean; error?: string }>;
+  updateInstall: () => Promise<{ success: boolean }>;
+  onUpdateAvailable: (callback: (info: { version: string; releaseDate: string; releaseNotes: string }) => void) => () => void;
+  onUpdateProgress: (callback: (progress: { percent: number; transferred: number; total: number }) => void) => () => void;
+  onUpdateDownloaded: (callback: () => void) => () => void;
 }
 
 const extras: DesktopExtras = {
@@ -61,6 +67,24 @@ const extras: DesktopExtras = {
   llmTestConnection: (config) => ipcRenderer.invoke("llm:testConnection", config),
   llmGetConfig: () => ipcRenderer.invoke("llm:getConfig"),
   llmSetConfig: (config) => ipcRenderer.invoke("llm:setConfig", config),
+  updateCheck: () => ipcRenderer.invoke("update:check"),
+  updateDownload: () => ipcRenderer.invoke("update:download"),
+  updateInstall: () => ipcRenderer.invoke("update:install"),
+  onUpdateAvailable: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { version: string; releaseDate: string; releaseNotes: string }) => callback(data);
+    ipcRenderer.on("update:available", handler);
+    return () => ipcRenderer.removeListener("update:available", handler);
+  },
+  onUpdateProgress: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { percent: number; transferred: number; total: number }) => callback(data);
+    ipcRenderer.on("update:progress", handler);
+    return () => ipcRenderer.removeListener("update:progress", handler);
+  },
+  onUpdateDownloaded: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on("update:downloaded", handler);
+    return () => ipcRenderer.removeListener("update:downloaded", handler);
+  },
 };
 
 contextBridge.exposeInMainWorld("reqsmith", api);

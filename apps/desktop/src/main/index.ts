@@ -9,6 +9,7 @@ import { registerScanIpc } from "./ipc/scan.js";
 import { registerEndpointIpc } from "./ipc/endpoints.js";
 import { registerAuthIpc } from "./ipc/auth.js";
 import { registerLLMIpc } from "./ipc/llm.js";
+import { initAutoUpdater } from "./updater.js";
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -60,6 +61,8 @@ async function initServices() {
 app.whenReady().then(async () => {
   await initServices();
   await createWindow();
+  if (mainWindow) initAutoUpdater(mainWindow);
+
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

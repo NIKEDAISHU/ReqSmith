@@ -24,6 +24,14 @@ declare global {
         success: boolean;
         error?: string;
       }>;
+      llmGetConfig: () => Promise<{ apiUrl: string; model: string; apiKey?: string } | null>;
+      llmSetConfig: (config: { apiUrl: string; model: string; apiKey?: string }) => Promise<{ success: boolean }>;
+      updateCheck: () => Promise<{ available: boolean; info: { version: string } | null; error?: string }>;
+      updateDownload: () => Promise<{ success: boolean; error?: string }>;
+      updateInstall: () => Promise<{ success: boolean }>;
+      onUpdateAvailable: (callback: (info: { version: string; releaseDate: string; releaseNotes: string }) => void) => () => void;
+      onUpdateProgress: (callback: (progress: { percent: number; transferred: number; total: number }) => void) => () => void;
+      onUpdateDownloaded: (callback: () => void) => () => void;
     };
   }
 }

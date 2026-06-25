@@ -3,6 +3,7 @@ import { useProjectStore } from "./stores/project-store.js";
 import { CreateProjectDialog } from "./components/CreateProjectDialog.js";
 import { ProjectList } from "./components/ProjectList.js";
 import { EndpointPage } from "./components/EndpointPage.js";
+import { UpdateBanner } from "./components/UpdateBanner.js";
 import { s } from "./styles.js";
 
 type NavPage = "workbench" | "endpoints" | "suites" | "runs" | "data" | "reports" | "settings";
@@ -65,6 +66,7 @@ export function App() {
           </button>
         </div>
       </nav>
+      <UpdateBanner />
 
       {/* ── Main content ── */}
       <main style={page === "endpoints" ? { ...s.main, overflow: "hidden", padding: 0 } : s.main}>
