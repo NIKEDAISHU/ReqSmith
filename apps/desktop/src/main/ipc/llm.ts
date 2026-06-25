@@ -66,8 +66,6 @@ export function setCustomLLMConfig(config: LLMConfig): void {
 
 /** Call an OpenAI-compatible chat completion endpoint. */
 async function callLLM(config: LLMConfig, prompt: string): Promise<string | null> {
-  const { promise, resolve } = Promise.withResolvers<string | null>();
-
   try {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -81,17 +79,19 @@ async function callLLM(config: LLMConfig, prompt: string): Promise<string | null
       messages: [
         {
           role: "system",
-          content: `You are a test data generator for API testing. Generate realistic, diverse test values that match the semantic meaning of each parameter. Always respond with ONLY a JSON object mapping parameter names to values. No explanation, no markdown, just the JSON object.`,
+          content: `You are a helpful assistant that responds with structured data as requested. Follow the user's output format exactly.`,
         },
         { role: "user", content: prompt },
       ],
       temperature: 0.7,
-      max_tokens: 1024,
+      max_tokens: 4096,
     });
 
     const url = new URL(config.apiUrl);
     const isHttps = url.protocol === "https:";
     const httpModule = isHttps ? await import("node:https") : await import("node:http");
+
+    const { promise, resolve } = Promise.withResolvers<string | null>();
 
     const req = httpModule.default.request(
       url,
@@ -108,26 +108,32 @@ async function callLLM(config: LLMConfig, prompt: string): Promise<string | null
           try {
             const json = JSON.parse(data);
             const content = json.choices?.[0]?.message?.content;
-            if (content) {
-              const jsonMatch = content.match(/\{[\s\S]*\}/);
-              resolve(jsonMatch ? jsonMatch[0] : null);
+            if (typeof content === "string" && content.length > 0) {
+              resolve(content);
+            } else {
+              console.error("[callLLM] Empty content, raw response:", data.substring(0, 300));
+              resolve(null);
             }
-            resolve(null);
-          } catch {
+          } catch (err) {
+            console.error("[callLLM] Parse error:", err, "raw:", data.substring(0, 300));
             resolve(null);
           }
         });
       },
     );
 
-    req.on("error", () => resolve(null));
+    req.on("error", (err: Error) => {
+      console.error("[callLLM] Request error:", err.message);
+      resolve(null);
+    });
     req.write(body);
     req.end();
-  } catch {
-    resolve(null);
-  }
 
-  return promise;
+    return promise;
+  } catch (err) {
+    console.error("[callLLM] Unexpected error:", err);
+    return null;
+  }
 }
 
 export function createLLMGenerator(config: LLMConfig): LLMGenerator {
@@ -160,7 +166,9 @@ Rules:
       if (!response) return null;
 
       try {
-        const values = JSON.parse(response) as Record<string, string>;
+        const jsonMatch = response.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) return null;
+        const values = JSON.parse(jsonMatch[0]) as Record<string, string>;
         const filtered: Record<string, string> = {};
         for (const p of params) {
           if (values[p.name] !== undefined) {
@@ -284,6 +292,7 @@ ${endpointList}
 只返回JSON，不要其他内容`;
 
       const response = await callLLM(config, prompt);
+      console.log("[llm:analyzeEndpoints] Response length:", response?.length ?? 0, "preview:", response?.substring(0, 200));
       if (!response) {
         return { success: false, error: "模型未返回结果" };
       }
