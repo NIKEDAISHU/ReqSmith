@@ -253,7 +253,6 @@ export function registerLLMIpc(): void {
     "llm:analyzeEndpoints",
     async (_event: IpcMainInvokeEvent, raw: unknown) => {
       const input = raw as Record<string, unknown>;
-      const projectId = String(input.projectId);
       const endpoints = input.endpoints as Array<{ id: string; method: string; path: string; name: string; group: string; parameters: Array<{ name: string; type: string; location: string }> }>;
 
       if (!endpoints || endpoints.length === 0) {
