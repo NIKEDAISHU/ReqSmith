@@ -381,6 +381,19 @@ export function registerEndpointIpc(db: Kysely<Database>): void {
       summary: { total: results.length, passed, failed },
     };
   });
+  // Batch rename and regroup endpoints (from AI analysis)
+  ipcMain.handle("endpoints:batchRename", async (_event: IpcMainInvokeEvent, raw: unknown) => {
+    const input = raw as Record<string, unknown>;
+    const renames = input.renames as Array<{ id: string; name: string; group: string }>;
+    if (!renames || renames.length === 0) {
+      return { success: false, error: "No renames provided" };
+    }
+    for (const r of renames) {
+      await repo.renameAndUpdateGroup(r.id, r.name, r.group);
+    }
+    return { success: true, count: renames.length };
+  });
+
 }
 
 /** Extract entity IDs from a list response body for use in subsequent detail endpoints. */

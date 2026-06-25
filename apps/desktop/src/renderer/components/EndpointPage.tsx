@@ -26,6 +26,7 @@ export function EndpointPage() {
     doLogin, logout,
     toggleEndpointSelection, selectAllEndpoints, clearSelectedEndpoints,
     batchTestSelected, setSortByModifiedTime,
+    analyzing, analyzeAndRename,
   } = useEndpointStore();
   const [showLogin, setShowLogin] = useState(false);
   const [loginUser, setLoginUser] = useState("");
@@ -190,6 +191,15 @@ export function EndpointPage() {
             onClick={() => setSortByModifiedTime(!sortByModifiedTime)}
           >
             按代码时间排序
+          </button>
+          <span style={{ flex: 1 }} />
+          <button
+            className="pill"
+            style={{ fontSize: "11px", background: analyzing ? "var(--paper-3)" : "var(--accent)", color: analyzing ? "var(--secondary)" : "#fff" }}
+            onClick={() => currentProject && analyzeAndRename(currentProject.id)}
+            disabled={analyzing}
+          >
+            {analyzing ? "🧠 AI 分析中…" : "🧠 AI 命名分类"}
           </button>
         </div>
 

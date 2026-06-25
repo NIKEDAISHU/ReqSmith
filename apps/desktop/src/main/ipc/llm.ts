@@ -247,4 +247,59 @@ export function registerLLMIpc(): void {
       return { success: false, error: "Invalid config" };
     },
   );
+
+  // Batch analyze endpoints: LLM generates Chinese names and groups
+  ipcMain.handle(
+    "llm:analyzeEndpoints",
+    async (_event: IpcMainInvokeEvent, raw: unknown) => {
+      const input = raw as Record<string, unknown>;
+      const projectId = String(input.projectId);
+      const endpoints = input.endpoints as Array<{ id: string; method: string; path: string; name: string; group: string; parameters: Array<{ name: string; type: string; location: string }> }>;
+
+      if (!endpoints || endpoints.length === 0) {
+        return { success: false, error: "No endpoints to analyze" };
+      }
+
+      const config = getDefaultLLMConfig();
+      if (!config) {
+        return { success: false, error: "请先配置 LLM（设置 > LLM 配置）" };
+      }
+
+      // Build endpoint summary for the prompt
+      const endpointList = endpoints.map((ep, i) =>
+        `${i + 1}. [${ep.id}] ${ep.method} ${ep.path} (当前名: ${ep.name}, 当前分组: ${ep.group}) 参数: ${ep.parameters.map(p => `${p.name}(${p.type},${p.location})`).join(", ") || "无"}`
+      ).join("\n");
+
+      const prompt = `你是一个中国卫生行政执法系统的API分析师。请为以下接口生成更易理解的中文命名和合理的业务分类分组。
+
+接口列表:
+${endpointList}
+
+要求:
+1. name: 用简短中文描述接口功能，如"查询案卷列表"、"获取当事人详情"、"新增评查规则"
+2. group: 按业务模块归类，如"案卷管理"、"当事人管理"、"评查规则"、"用户认证"、"系统管理"
+3. 分组不要超过8个，相近功能合并
+4. 保持ID不变
+
+返回JSON数组，格式: [{"id":"原始id","name":"中文名","group":"中文分组"}]
+只返回JSON，不要其他内容`;
+
+      const response = await callLLM(config, prompt);
+      if (!response) {
+        return { success: false, error: "模型未返回结果" };
+      }
+
+      try {
+        // Extract JSON from response (may have markdown code blocks)
+        const jsonMatch = response.match(/\[[\s\S]*\]/);
+        if (!jsonMatch) {
+          return { success: false, error: "模型返回格式错误" };
+        }
+        const results = JSON.parse(jsonMatch[0]) as Array<{ id: string; name: string; group: string }>;
+        return { success: true, results };
+      } catch (err) {
+        return { success: false, error: `解析模型输出失败: ${String(err)}` };
+      }
+    },
+  );
 }

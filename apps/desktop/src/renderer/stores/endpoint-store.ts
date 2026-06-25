@@ -41,6 +41,7 @@ interface EndpointState {
   baseUrl: string;
   login: LoginState;
   llmConfig: { apiUrl: string; model: string } | null;
+  analyzing: boolean;
 
   fetchEndpoints: (projectId: string) => Promise<void>;
   selectEndpoint: (summary: EndpointSummary) => Promise<void>;
@@ -59,6 +60,8 @@ interface EndpointState {
   batchTestSelected: (projectId: string) => Promise<void>;
   setSortByModifiedTime: (sort: boolean) => Promise<void>;
   loadLLMConfig: () => Promise<void>;
+  analyzeAndRename: (projectId: string) => Promise<void>;
+
 }
 
 export const useEndpointStore = create<EndpointState>((set, get) => ({
@@ -79,6 +82,7 @@ export const useEndpointStore = create<EndpointState>((set, get) => ({
   baseUrl: "http://localhost:8080",
   login: { loggedIn: false, cookieHeader: "", username: "" },
   llmConfig: null,
+  analyzing: false,
 
   fetchEndpoints: async (projectId: string) => {
     set({ loading: true });
@@ -231,6 +235,39 @@ export const useEndpointStore = create<EndpointState>((set, get) => ({
       }
     } catch (err) {
       console.error("loadLLMConfig error:", err);
+    }
+  },
+  analyzeAndRename: async (projectId: string) => {
+    const { endpoints } = get();
+    if (endpoints.length === 0) return;
+    set({ analyzing: true });
+    try {
+      const endpointData = endpoints.map((ep) => ({
+        id: String(ep.id),
+        method: ep.method,
+        path: ep.path,
+        name: ep.name,
+        group: ep.group,
+        parameters: [],
+      }));
+      const result = await window.reqsmithDesktop.llmAnalyzeEndpoints({ projectId, endpoints: endpointData });
+      if (result.success && result.results) {
+        // Persist to database
+        await window.reqsmith.endpoints.batchRename({ renames: result.results });
+        // Update local state with new names/groups
+        const updated = new Map(result.results.map((r) => [r.id, r]));
+        const newEndpoints = endpoints.map((ep) => {
+          const rename = updated.get(String(ep.id));
+          if (!rename) return ep;
+          return { ...ep, name: rename.name, group: rename.group };
+        });
+        set({ endpoints: newEndpoints, analyzing: false });
+      } else {
+        set({ analyzing: false });
+      }
+    } catch (err) {
+      console.error("analyzeAndRename error:", err);
+      set({ analyzing: false });
     }
   },
 }));

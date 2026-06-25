@@ -26,6 +26,7 @@ declare global {
       }>;
       llmGetConfig: () => Promise<{ apiUrl: string; model: string; apiKey?: string } | null>;
       llmSetConfig: (config: { apiUrl: string; model: string; apiKey?: string }) => Promise<{ success: boolean }>;
+      llmAnalyzeEndpoints: (input: { projectId: string; endpoints: Array<{ id: string; method: string; path: string; name: string; group: string; parameters: Array<{ name: string; type: string; location: string }> }> }) => Promise<{ success: boolean; results?: Array<{ id: string; name: string; group: string }>; error?: string }>;
       updateCheck: () => Promise<{ available: boolean; info: { version: string } | null; error?: string }>;
       updateDownload: () => Promise<{ success: boolean; error?: string }>;
       updateInstall: () => Promise<{ success: boolean }>;

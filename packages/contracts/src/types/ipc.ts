@@ -19,6 +19,7 @@ export interface EndpointIpc {
   getSelected(projectId: string): Promise<Array<{ id: string; method: string; path: string; name: string; group: string; tags: string[] }>>;
   listByModifiedTime(projectId: string): Promise<Array<{ id: string; method: string; path: string; name: string; group: string; tags: string[]; lastTestedAt?: number }>>;
   batchTest(input: { endpointIds: string[]; overrides?: Record<string, unknown> }): Promise<{ success: boolean; results: Array<{ endpointId: string; success: boolean; statusCode?: number; error?: string; responseTimeMs?: number }>; summary: { total: number; passed: number; failed: number } }>;
+  batchRename(input: { renames: Array<{ id: string; name: string; group: string }> }): Promise<{ success: boolean; count?: number }>;
 }
 
 export interface SuiteIpc {

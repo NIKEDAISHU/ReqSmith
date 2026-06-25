@@ -22,6 +22,7 @@ const api: ReqSmithIpc = {
     getSelected: (projectId) => ipcRenderer.invoke("endpoints:getSelected", projectId),
     listByModifiedTime: (projectId) => ipcRenderer.invoke("endpoints:listByModifiedTime", projectId),
     batchTest: (input) => ipcRenderer.invoke("endpoints:batchTest", input),
+    batchRename: (input) => ipcRenderer.invoke("endpoints:batchRename", input),
   },
   suites: {
     list: (projectId) => ipcRenderer.invoke("suites:list", projectId),
@@ -52,6 +53,7 @@ export interface DesktopExtras {
   llmTestConnection: (config: { apiUrl: string; model: string; apiKey?: string }) => Promise<{ success: boolean; error?: string }>;
   llmGetConfig: () => Promise<{ apiUrl: string; model: string; apiKey?: string } | null>;
   llmSetConfig: (config: { apiUrl: string; model: string; apiKey?: string }) => Promise<{ success: boolean }>;
+  llmAnalyzeEndpoints: (input: { projectId: string; endpoints: Array<{ id: string; method: string; path: string; name: string; group: string; parameters: Array<{ name: string; type: string; location: string }> }> }) => Promise<{ success: boolean; results?: Array<{ id: string; name: string; group: string }>; error?: string }>;
   updateCheck: () => Promise<{ available: boolean; info: { version: string } | null; error?: string }>;
   updateDownload: () => Promise<{ success: boolean; error?: string }>;
   updateInstall: () => Promise<{ success: boolean }>;
@@ -67,6 +69,7 @@ const extras: DesktopExtras = {
   llmTestConnection: (config) => ipcRenderer.invoke("llm:testConnection", config),
   llmGetConfig: () => ipcRenderer.invoke("llm:getConfig"),
   llmSetConfig: (config) => ipcRenderer.invoke("llm:setConfig", config),
+  llmAnalyzeEndpoints: (input) => ipcRenderer.invoke("llm:analyzeEndpoints", input),
   updateCheck: () => ipcRenderer.invoke("update:check"),
   updateDownload: () => ipcRenderer.invoke("update:download"),
   updateInstall: () => ipcRenderer.invoke("update:install"),

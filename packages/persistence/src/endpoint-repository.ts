@@ -93,6 +93,10 @@ export class EndpointRepository {
       .execute();
   }
 
+  async renameAndUpdateGroup(endpointId: string, name: string, group: string): Promise<void> {
+    await this.db.updateTable("endpoint").set({ name, group_name: group }).where("id", "=", endpointId).execute();
+  }
+
   async listByModifiedTime(projectId: string): Promise<NormalizedEndpoint[]> {
     const rows = await this.db
       .selectFrom("endpoint")
