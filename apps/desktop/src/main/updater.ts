@@ -1,4 +1,6 @@
-import { autoUpdater, type UpdateInfo } from "electron-updater";
+import type { UpdateInfo } from "electron-updater";
+import pkg from "electron-updater";
+const { autoUpdater } = pkg;
 import { BrowserWindow, ipcMain } from "electron";
 
 let updateAvailable = false;
@@ -24,7 +26,6 @@ export function initAutoUpdater(mainWindow: BrowserWindow): void {
   autoUpdater.on("update-not-available", () => {
     updateAvailable = false;
     updateInfo = null;
-    mainWindow.webContents.send("update:not-available");
   });
 
   autoUpdater.on("download-progress", (progress) => {
@@ -40,7 +41,8 @@ export function initAutoUpdater(mainWindow: BrowserWindow): void {
   });
 
   autoUpdater.on("error", (err) => {
-    mainWindow.webContents.send("update:error", { message: err?.message ?? "Unknown error" });
+    // Silently log — don't spam the user with update check failures
+    console.warn("[Updater]", err?.message ?? "Unknown error");
   });
 
   // IPC handlers
